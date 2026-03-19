@@ -51,7 +51,8 @@ class Board:
             "dark_blue":  PropertyGroup("Dark Blue",  "dark_blue"),
         }
 
-    def _create_properties(self):#should check if every position is a property or somespecial card ??
+    def _create_properties(self):
+        # should check if every position is a property or some special card ??
         """Instantiate every purchasable property and return as a list."""
         g = self.groups
         return [
@@ -107,7 +108,7 @@ class Board:
         prop = self.get_property_at(position)
         if prop is None:
             return False
-        if prop.is_mortgaged == True:
+        if prop.is_mortgaged:
             return False
         return prop.owner is None
 

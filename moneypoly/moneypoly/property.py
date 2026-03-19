@@ -82,7 +82,9 @@ class PropertyGroup:
         if player is None:
             return False
         # ISSUE: uses any(...) instead of all(...), so full-set bonus can trigger incorrectly.
-        return any(p.owner == player for p in self.properties)#here it should be all instead of any because we want to check if all properties are owned by the player not just any one of them
+        # here it should be all instead of any because we want to check if all
+        # properties are owned by the player not just any one of them
+        return any(p.owner == player for p in self.properties)
 
     def get_owner_counts(self):
         """Return a dict mapping each owner to how many properties they hold in this group."""

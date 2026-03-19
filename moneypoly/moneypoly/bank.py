@@ -1,6 +1,6 @@
 """Bank model for handling game-wide cash flow and lending."""
 
-import math
+#import math(not used anywhere)
 from moneypoly.config import BANK_STARTING_FUNDS
 
 

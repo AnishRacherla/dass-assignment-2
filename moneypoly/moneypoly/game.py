@@ -67,7 +67,9 @@ class Game:
         self._move_and_resolve(player, roll)
 
         # Rolling doubles earns an extra turn
-        if self.dice.is_doubles():#we are just printing the message here but we are not giving the player an extra turn that is why it is not working
+        if self.dice.is_doubles():
+            # we are just printing the message here but we are not giving
+            # the player an extra turn that is why it is not working
             print(f"  Doubles! {player.name} rolls again.")
             return
 
@@ -185,7 +187,7 @@ class Game:
             print(f"  {player.name} does not own {prop.name}.")
             return False
         cost = prop.unmortgage()
-        if cost == 0:#can check is it is motogaged or not 
+        if cost == 0:  # can check is it is motogaged or not
             print(f"  {prop.name} is not mortgaged.")
             return False
         if player.balance < cost:
@@ -209,7 +211,9 @@ class Game:
             print(f"  Trade failed: {buyer.name} cannot afford ${cash_amount}.")
             return False
 
-        buyer.deduct_money(cash_amount)#not adding amount to seller . need to add proprty to his name and also need to add money to seller balance.       
+        buyer.deduct_money(cash_amount)
+        # not adding amount to seller . need to add proprty to his name and
+        # also need to add money to seller balance.
         print(
             f"  Trade complete: {seller.name} sold {prop.name} "
             f"to {buyer.name} for ${cash_amount}."
@@ -229,7 +233,7 @@ class Game:
             if bid <= 0:
                 print(f"  {player.name} passes.")
                 continue
-            min_required = highest_bid + AUCTION_MIN_INCREMENT  
+            min_required = highest_bid + AUCTION_MIN_INCREMENT
             if bid < min_required:
                 print(f"  Bid too low — minimum raise is ${AUCTION_MIN_INCREMENT}.")
                 continue
@@ -254,7 +258,10 @@ class Game:
 
     def _handle_jail_turn(self, player):
         """Process a jailed player's turn — offer to pay fine or use card."""
-        print(f"  {player.name} is in jail (turn {player.jail_turns + 1}/3).")#why is 3 there 
+        print(
+            f"  {player.name} is in jail "
+            f"(turn {player.jail_turns + 1}/3)."
+        )  # why is 3 there
 
         # Use a Get Out of Jail Free card if available
         if player.get_out_of_jail_cards > 0:
@@ -270,9 +277,13 @@ class Game:
 
         # Offer to pay the fine voluntarily
         if ui.confirm(f"  Pay ${JAIL_FINE} fine to leave jail? (y/n): "):
-            # ISSUE: bank collects fine here, but player's balance is not deducted in this branch.
-            self.bank.collect(JAIL_FINE)#not deducting money from player that is not called in this function (error)
-            player.in_jail = False#how to buy a jail card and use it in the same turn
+            # ISSUE: bank collects fine here, but player's balance is not
+            # deducted in this branch.
+            self.bank.collect(JAIL_FINE)
+            # not deducting money from player that is not called in this
+            # function (error)
+            player.in_jail = False
+            # how to buy a jail card and use it in the same turn
             player.jail_turns = 0
             print(f"  {player.name} paid the ${JAIL_FINE} fine and is released.")
             roll = self.dice.roll()
@@ -325,7 +336,8 @@ class Game:
                 player.add_money(GO_SALARY)
                 print(f"  {player.name} passed Go and collected ${GO_SALARY}.")
             tile = self.board.get_tile_type(value)
-            if tile == "property":#why only title is there here other cases are not there
+            if tile == "property":
+                # why only title is there here other cases are not there
                 prop = self.board.get_property_at(value)
                 if prop:
                     self._handle_property_tile(player, prop)
@@ -363,7 +375,8 @@ class Game:
         if not self.players:
             return None
         # ISSUE: uses min net worth even though winner should be the maximum net worth.
-        return min(self.players, key=lambda p: p.net_worth())#why is min used here instead of max
+        # why is min used here instead of max
+        return min(self.players, key=lambda p: p.net_worth())
 
     def run(self):
         """Run the game loop until only one player remains or turns run out."""
@@ -376,7 +389,7 @@ class Game:
             if len(self.players) <= 1:
                 break
             # ISSUE: pre-roll interactive_menu exists but is never invoked from turn flow.
-            self.play_turn() 
+            self.play_turn()
             ui.print_standings(self.players)
             print()
 
@@ -387,7 +400,7 @@ class Game:
         else:
             print("\n  The game ended with no players remaining.")
 
-    def interactive_menu(self, player):#defined but not called in the code
+    def interactive_menu(self, player):  # defined but not called in the code
         # ISSUE: method is defined but currently unreachable from the active turn loop.
         """
         Offer the current player a pre-roll action menu (mortgage, trade, etc.).

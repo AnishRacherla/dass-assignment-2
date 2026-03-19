@@ -1,6 +1,5 @@
 """Player model and player-state operations for MoneyPoly."""
 
-import sys
 from moneypoly.config import STARTING_BALANCE, BOARD_SIZE, GO_SALARY, JAIL_POSITION
 
 
@@ -30,15 +29,22 @@ class Player:
             raise ValueError(f"Cannot deduct a negative amount: {amount}")
         self.balance -= amount
 
-    def is_bankrupt(self):#bankruptcy should be determined by the player's net worth not just the balance because a player might have no cash but still have valuable properties that can be sold to pay off debts
+    def is_bankrupt(self):
+        # bankruptcy should be determined by the player's net worth not just
+        # the balance because a player might have no cash but still have
+        # valuable properties that can be sold to pay off debts
         """Return True if this player has no money remaining."""
         return self.balance <= 0
 
-    def net_worth(self):#total net wroth should include the value of properties owned by the player as well not just the balance
+    def net_worth(self):
+        # total net wroth should include the value of properties owned by the
+        # player as well not just the balance
         """Calculate and return this player's total net worth."""
         return self.balance
 
-    def move(self, steps):#move should also check if the player passes go and award the salary accordingly.
+    def move(self, steps):
+        # move should also check if the player passes go and award the salary
+        # accordingly.
         """
         Move this player forward by `steps` squares, wrapping around the board.
         Awards the Go salary if the player passes or lands on Go.
@@ -76,7 +82,8 @@ class Player:
         return len(self.properties)
 
 
-    def status_line(self):#what is the purpose of this function ??(not used anywhere)
+    def status_line(self):
+        # what is the purpose of this function ??(not used anywhere)
         """Return a concise one-line status string for this player."""
         jail_tag = " [JAILED]" if self.in_jail else ""
         return (
