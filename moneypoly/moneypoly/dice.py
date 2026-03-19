@@ -20,9 +20,8 @@ class Dice:
 
     def roll(self):
         """Roll both dice and return their combined total."""
-        # ISSUE: randint upper bound is 5, so dice outcomes are 1..5 instead of 1..6.
-        self.die1 = random.randint(1, 5)#it should be from 1 to 6 not 5
-        self.die2 = random.randint(1, 5)
+        self.die1 = random.randint(1, 6)#it should be from 1 to 6 not 5
+        self.die2 = random.randint(1, 6)
         if self.is_doubles():
             self.doubles_streak += 1
         else:
