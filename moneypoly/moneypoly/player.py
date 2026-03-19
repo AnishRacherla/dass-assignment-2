@@ -40,7 +40,7 @@ class Player:  # pylint: disable=too-many-instance-attributes
         # total net wroth should include the value of properties owned by the
         # player as well not just the balance
         """Calculate and return this player's total net worth."""
-        return self.balance
+        return self.balance + sum(prop.price for prop in self.properties)
 
     def move(self, steps):
         # move should also check if the player passes go and award the salary
@@ -50,12 +50,12 @@ class Player:  # pylint: disable=too-many-instance-attributes
         Awards the Go salary if the player passes or lands on Go.
         Returns the new board position.
         """
+        old_position = self.position
         self.position = (self.position + steps) % BOARD_SIZE
 
-        # ISSUE: salary is awarded only when landing exactly on Go, not when passing Go.
-        if self.position == 0:
+        if old_position + steps >= BOARD_SIZE:
             self.add_money(GO_SALARY)
-            print(f"  {self.name} landed on Go and collected ${GO_SALARY}.")
+            print(f"  {self.name} passed Go and collected ${GO_SALARY}.")
 
         return self.position
 
