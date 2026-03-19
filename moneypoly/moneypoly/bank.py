@@ -21,7 +21,8 @@ class Bank:
         Receive funds into the bank (taxes, fines, auction proceeds, etc.).
         Negative amounts are silently ignored.
         """
-        # ISSUE: docstring says negative amounts are ignored, but implementation applies them.
+        if amount < 0:
+            return
         self._funds += amount
         self._total_collected += amount
 
@@ -47,8 +48,8 @@ class Bank:
         """
         if amount <= 0:
             return
-        # ISSUE: docstring says bank funds are reduced, but _funds is not decremented here.
-        player.add_money(amount)
+        disbursed = self.pay_out(amount)
+        player.add_money(disbursed)
         self._loans_issued.append((player.name, amount))#no need to deduct money ??(error)
         print(f"  Bank issued a ${amount} emergency loan to {player.name}.")
 
