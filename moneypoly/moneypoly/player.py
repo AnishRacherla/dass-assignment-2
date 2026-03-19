@@ -50,7 +50,6 @@ class Player:
         Awards the Go salary if the player passes or lands on Go.
         Returns the new board position.
         """
-        old_position = self.position
         self.position = (self.position + steps) % BOARD_SIZE
 
         # ISSUE: salary is awarded only when landing exactly on Go, not when passing Go.
