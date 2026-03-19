@@ -138,8 +138,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
         Purchase `prop` on behalf of `player`.
         Returns True on success, False if the player cannot afford it.
         """
-        # ISSUE: affordability check uses <=, so a player with exact balance cannot buy.
-        if player.balance <= prop.price:
+        if player.balance < prop.price:
             print(f"  {player.name} cannot afford {prop.name} (${prop.price}).")
             return False
         player.deduct_money(prop.price)
@@ -160,8 +159,8 @@ class Game:  # pylint: disable=too-many-instance-attributes
             return
 
         rent = prop.get_rent()
-        # ISSUE: rent is deducted from tenant but never credited to the owner.
         player.deduct_money(rent)
+        prop.owner.add_money(rent)
         print(f"  {player.name} paid ${rent} rent on {prop.name} to {prop.owner.name}.")
 
     def mortgage_property(self, player, prop):
@@ -209,8 +208,10 @@ class Game:  # pylint: disable=too-many-instance-attributes
             return False
 
         buyer.deduct_money(cash_amount)
-        # not adding amount to seller . need to add proprty to his name and
-        # also need to add money to seller balance.
+        seller.add_money(cash_amount)
+        seller.remove_property(prop)
+        buyer.add_property(prop)
+        prop.owner = buyer
         print(
             f"  Trade complete: {seller.name} sold {prop.name} "
             f"to {buyer.name} for ${cash_amount}."
@@ -274,13 +275,9 @@ class Game:  # pylint: disable=too-many-instance-attributes
 
         # Offer to pay the fine voluntarily
         if ui.confirm(f"  Pay ${JAIL_FINE} fine to leave jail? (y/n): "):
-            # ISSUE: bank collects fine here, but player's balance is not
-            # deducted in this branch.
+            player.deduct_money(JAIL_FINE)
             self.bank.collect(JAIL_FINE)
-            # not deducting money from player that is not called in this
-            # function (error)
             player.in_jail = False
-            # how to buy a jail card and use it in the same turn
             player.jail_turns = 0
             print(f"  {player.name} paid the ${JAIL_FINE} fine and is released.")
             roll = self.dice.roll()
@@ -371,9 +368,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
         """Return the player with the highest net worth."""
         if not self.players:
             return None
-        # ISSUE: uses min net worth even though winner should be the maximum net worth.
-        # why is min used here instead of max
-        return min(self.players, key=lambda p: p.net_worth())
+        return max(self.players, key=lambda p: p.net_worth())
 
     def run(self):
         """Run the game loop until only one player remains or turns run out."""
