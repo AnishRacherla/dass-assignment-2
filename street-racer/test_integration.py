@@ -13,6 +13,41 @@ from results_module import ResultsModule
 from mission_planning_module import MissionPlanningModule
 from reputation_module import ReputationModule
 from maintenance_module import MaintenanceModule
+from main import StreetRaceManagerCLI
+from unittest.mock import patch
+
+
+class TestMissionCLIInputIntegration(unittest.TestCase):
+    """Integration tests for CLI mission assignment input handling."""
+
+    def setUp(self):
+        self.cli = StreetRaceManagerCLI()
+        self.driver_id = self.cli.registration.register_crew("CLI Driver")
+        self.mechanic_id = self.cli.registration.register_crew("CLI Mechanic")
+        self.strategist_id = self.cli.registration.register_crew("CLI Strategist")
+        self.cli.crew_mgmt.assign_role(self.driver_id, "driver")
+        self.cli.crew_mgmt.assign_role(self.mechanic_id, "mechanic")
+        self.cli.crew_mgmt.assign_role(self.strategist_id, "strategist")
+
+    def test_create_mission_allows_yes_for_multiple_crew_assignments(self):
+        """Test that CLI accepts 'yes' while assigning multiple crew members."""
+        inputs = [
+            "heist",
+            "Downtown operation",
+            "yes",
+            str(self.driver_id),
+            "yes",
+            str(self.mechanic_id),
+            "yes",
+            str(self.strategist_id),
+            "no",
+        ]
+
+        with patch("builtins.input", side_effect=inputs):
+            self.cli.create_mission()
+
+        mission = self.cli.missions.get_mission(1)
+        self.assertEqual(len(mission["assigned_crew"]), 3)
 
 
 class TestRegistrationToCrew(unittest.TestCase):
