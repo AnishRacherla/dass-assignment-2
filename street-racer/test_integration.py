@@ -119,6 +119,34 @@ class TestRaceManagementChain(unittest.TestCase):
         self.assertIn(crew_id, self.races.get_race_drivers(race_id))
         self.assertIn(vehicle_id, self.races.get_race_vehicles(race_id))
 
+    def test_race_start_requires_driver_and_vehicle_then_starts(self):
+        """Test race readiness transition from invalid to valid state."""
+        crew_id = self.registration.register_crew("Ready Driver")
+        self.crew_mgmt.assign_role(crew_id, "driver")
+        race_id = self.races.create_race("Readiness Race", 4000)
+        vehicle_id = self.inventory.add_vehicle("Ready Car")
+
+        self.assertFalse(self.races.is_race_ready(race_id))
+        with self.assertRaises(ValueError):
+            self.races.start_race(race_id)
+
+        self.races.add_driver(race_id, crew_id)
+        self.races.add_vehicle(race_id, vehicle_id)
+        self.assertTrue(self.races.is_race_ready(race_id))
+
+        self.races.start_race(race_id)
+        self.assertEqual(self.races.get_race(race_id)["status"], "started")
+
+    def test_duplicate_driver_entry_rejected(self):
+        """Test duplicate-driver protection across Registration/Crew/Race modules."""
+        crew_id = self.registration.register_crew("Repeat Driver")
+        self.crew_mgmt.assign_role(crew_id, "driver")
+        race_id = self.races.create_race("No Duplicates", 5000)
+
+        self.races.add_driver(race_id, crew_id)
+        with self.assertRaises(ValueError):
+            self.races.add_driver(race_id, crew_id)
+
 
 class TestRaceToResultsChain(unittest.TestCase):
     """Integration tests for Race → Results → Inventory chain."""
@@ -225,6 +253,68 @@ class TestMissionPlanningValidation(unittest.TestCase):
         
         with self.assertRaises(ValueError):
             self.missions.start_mission(mission_id)
+
+    def test_surveillance_mission_requires_spotter_and_strategist(self):
+        """Test role validation for surveillance mission integration path."""
+        mission_id = self.missions.create_mission("surveillance", "Watch target")
+        strategist_id = self.registration.register_crew("Planner")
+        self.crew_mgmt.assign_role(strategist_id, "strategist")
+        self.missions.assign_crew_to_mission(mission_id, strategist_id)
+
+        self.assertFalse(self.missions.can_start_mission(mission_id))
+
+        spotter_id = self.registration.register_crew("Scout")
+        self.crew_mgmt.assign_role(spotter_id, "spotter")
+        self.missions.assign_crew_to_mission(mission_id, spotter_id)
+
+        self.assertTrue(self.missions.can_start_mission(mission_id))
+        self.missions.start_mission(mission_id)
+        self.assertEqual(self.missions.get_mission(mission_id)["status"], "started")
+
+
+class TestRaceResultCLIIntegration(unittest.TestCase):
+    """Integration tests for CLI race/result interactions across modules."""
+
+    def setUp(self):
+        self.cli = StreetRaceManagerCLI()
+
+    def test_cli_add_driver_to_race_connects_registration_and_inventory(self):
+        """Test CLI path that adds driver and vehicle to race in one flow."""
+        crew_id = self.cli.registration.register_crew("CLI Racer")
+        self.cli.crew_mgmt.assign_role(crew_id, "driver")
+        race_id = self.cli.races.create_race("CLI Race", 5000)
+        vehicle_id = self.cli.inventory.add_vehicle("CLI Car")
+
+        with patch(
+            "builtins.input",
+            side_effect=[str(race_id), str(crew_id), str(vehicle_id)],
+        ):
+            self.cli.add_driver_to_race()
+
+        self.assertIn(crew_id, self.cli.races.get_race_drivers(race_id))
+        self.assertIn(vehicle_id, self.cli.races.get_race_vehicles(race_id))
+
+    def test_cli_record_result_updates_results_reputation_and_cash(self):
+        """Test CLI result flow updates all downstream modules."""
+        crew_id = self.cli.registration.register_crew("CLI Winner")
+        self.cli.crew_mgmt.assign_role(crew_id, "driver")
+        race_id = self.cli.races.create_race("CLI Final", 6000)
+        vehicle_id = self.cli.inventory.add_vehicle("CLI Winner Car")
+        self.cli.races.add_driver(race_id, crew_id)
+        self.cli.races.add_vehicle(race_id, vehicle_id)
+
+        start_cash = self.cli.inventory.get_balance()
+        start_rep = self.cli.reputation.get_crew_reputation(crew_id)
+
+        with patch("builtins.input", side_effect=[str(race_id), str(crew_id)]):
+            self.cli.record_result()
+
+        result = self.cli.results.get_race_result(race_id)
+        updated_rep = self.cli.reputation.get_crew_reputation(crew_id)
+        self.assertEqual(result["winner"], crew_id)
+        self.assertEqual(result["prize_awarded"], 6000)
+        self.assertEqual(self.cli.inventory.get_balance(), start_cash - 6000)
+        self.assertEqual(updated_rep["races_won"], start_rep["races_won"] + 1)
 
 
 class TestVehicleAndMaintenance(unittest.TestCase):

@@ -1,10 +1,11 @@
 # 1.3 White-Box Test Cases Report
 
 ## Scope
-These tests were designed from internal code paths (branch logic, state transitions, and edge cases) in:
-- `Bank`
-- `PropertyGroup`
+This report is for branch-focused white-box testing of MoneyPoly.
+
+Modules tested:
 - `Player`
+- `Property` and `PropertyGroup`
 - `Game`
 
 Run command:
@@ -13,59 +14,113 @@ Run command:
 python -m unittest tests.test_white_box -v
 ```
 
-## Test Cases, Why Needed, and Issues Found
+## Branch Coverage Design
 
-1. **`test_collect_ignores_negative_amount`**  
-   Why needed: `Bank.collect` has a decision path for input amount; negative values are an edge case that can corrupt bank balance.  
-   Issue found: Negative amount reduced bank funds even though method description says to ignore negatives.  
-   Fix: Return early when `amount < 0`.
+The test suite is designed from code structure (if/elif/else and early-return paths), not only from input/output behavior.
 
-2. **`test_give_loan_reduces_bank_balance`**  
-   Why needed: Loan flow changes two key states (`player.balance`, `bank._funds`); both must stay consistent.  
-   Issue found: Borrower got money but bank balance did not decrease.  
-   Fix: Disburse through `pay_out(amount)` and then credit player.
+### A) Player Branches
 
-3. **`test_all_owned_by_requires_full_set`**  
-   Why needed: Monopoly rent rules depend on full color-group ownership branch.  
-   Issue found: `any(...)` was used, so owning only one property incorrectly counted as full ownership.  
-   Fix: Use `all(...)` and require non-empty group.
+1. `move` pass-Go branch: salary is awarded when board wraps.
+2. `move` non-wrap branch: no salary awarded.
+3. `add_money` negative branch: raises `ValueError`.
+4. `net_worth` state branch: includes property prices.
 
-4. **`test_move_awards_salary_when_passing_go`**  
-   Why needed: Player movement has branch where crossing board boundary should award Go salary.  
-   Issue found: Salary only awarded when landing exactly on position 0.  
-   Fix: Track old position and award salary when `old_position + steps >= BOARD_SIZE`.
+### B) Property and Group Branches
 
-5. **`test_net_worth_includes_property_values`**  
-   Why needed: Winner calculation depends on `net_worth`; variable state must include assets.  
-   Issue found: Net worth returned cash only and ignored property value.  
-   Fix: Return `balance + sum(property.price)`.
+1. `get_rent` full-group ownership branch: doubled rent.
+2. `get_rent` mortgaged branch: zero rent.
 
-6. **`test_buy_property_allows_exact_balance`**  
-   Why needed: Affordability branch has edge case where `balance == price`.  
-   Issue found: Exact balance could not buy because condition used `<=`.  
-   Fix: Change check to `<`.
+### C) Game Turn Flow Branches
 
-7. **`test_pay_rent_transfers_to_owner`**  
-   Why needed: Rent payment updates two players and must preserve money transfer correctness.  
-   Issue found: Tenant was charged, owner was not credited.  
-   Fix: Add `prop.owner.add_money(rent)`.
+1. `play_turn` jailed-player path.
+2. `play_turn` three-doubles path (go to jail).
+3. `play_turn` doubles path (extra turn behavior).
+4. `play_turn` normal path (advance turn).
 
-8. **`test_trade_transfers_property_and_cash`**  
-   Why needed: Trade branch mutates ownership list, owner pointer, and both balances.  
-   Issue found: Buyer paid cash but property ownership and seller credit were not updated.  
-   Fix: Credit seller, move property between player lists, and set `prop.owner = buyer`.
+### D) Property Interaction Branches
 
-9. **`test_jail_fine_branch_deducts_player_balance`**  
-   Why needed: Jail release decision path changes jail state and money state; fine branch is critical.  
-   Issue found: Bank collected jail fine but player balance was not deducted.  
-   Fix: Add `player.deduct_money(JAIL_FINE)` in voluntary fine branch.
+1. `_handle_property_tile` unowned + buy branch.
+2. `_handle_property_tile` unowned + auction branch.
+3. `_handle_property_tile` unowned + skip branch.
+4. `_handle_property_tile` already-owned-by-self branch.
+5. `_handle_property_tile` owned-by-other branch (rent path).
 
-10. **`test_find_winner_uses_highest_net_worth`**  
-    Why needed: Winner branch is a core game result path.  
-    Issue found: Winner selected with `min(...)` instead of `max(...)`.  
-    Fix: Use `max(self.players, key=lambda p: p.net_worth())`.
+### E) Money and Trade Branches
+
+1. `buy_property` insufficient-funds branch.
+2. `buy_property` exact-balance edge branch.
+3. `pay_rent` mortgaged-property early-return branch.
+4. `pay_rent` no-owner early-return branch.
+5. `pay_rent` normal transfer branch.
+6. `trade` seller-not-owner failure branch.
+7. `trade` buyer-cannot-afford failure branch.
+8. `trade` successful branch (owner/list/balance updates).
+
+### F) Mortgage/Unmortgage Branches
+
+1. `mortgage_property` not-owner failure branch.
+2. `mortgage_property` already-mortgaged failure branch.
+3. `mortgage_property` success branch.
+4. `unmortgage_property` not-owner failure branch.
+5. `unmortgage_property` not-mortgaged failure branch.
+6. `unmortgage_property` insufficient-funds failure branch.
+7. `unmortgage_property` success branch.
+
+### G) Auction Branches
+
+1. `auction_property` no-valid-bids branch.
+2. `auction_property` winner branch.
+3. Also exercises low-bid and over-budget sub-branches.
+
+### H) Jail Branches
+
+1. `_handle_jail_turn` uses Get Out of Jail card branch.
+2. `_handle_jail_turn` voluntary fine payment branch.
+3. `_handle_jail_turn` no-action branch (stay jailed).
+4. `_handle_jail_turn` mandatory release on third turn branch.
+
+### I) Tile Resolution Branches
+
+1. `_move_and_resolve` income-tax branch.
+2. `_move_and_resolve` luxury-tax branch.
+3. `_move_and_resolve` go-to-jail branch.
+4. `_move_and_resolve` free-parking branch.
+5. `_move_and_resolve` chance branch.
+6. `_move_and_resolve` community-chest branch.
+7. `_move_and_resolve` railroad branch with no property object.
+8. `_move_and_resolve` normal property branch.
+
+### J) Card Action Branches
+
+1. `_apply_card` `None` card branch.
+2. `_apply_card` `collect` branch.
+3. `_apply_card` `pay` branch.
+4. `_apply_card` `jail` branch.
+5. `_apply_card` `jail_free` branch.
+6. `_apply_card` `move_to` pass-Go + property handling branch.
+7. `_apply_card` `move_to` non-property branch.
+8. `_apply_card` `birthday` branch (only players with enough balance pay).
+9. `_apply_card` `collect_from_all` branch.
+
+### K) Endgame Branches
+
+1. `_check_bankruptcy` non-bankrupt branch.
+2. `_check_bankruptcy` bankrupt elimination branch.
+3. `find_winner` no-players branch.
+
+## Why These Tests Are Needed (Simple Explanation)
+
+- Branch testing ensures each decision path is executed at least once.
+- Monopoly-style games are state-heavy, so we must check balance, ownership, jail flags, and turn index after each branch.
+- Edge cases (exact balance, zero/low money, pass-Go boundary, forced jail release, invalid bids) can break logic even when normal cases pass.
+
+## Errors or Logical Issues Found
+
+- In this branch-focused run, no failing logic was observed in the covered branches.
+- All branch tests passed on the current code.
 
 ## Result Summary
-- Initial run: **10 failures** (all above issues reproduced).
-- Final run: **10/10 tests passed**.
-- These tests cover branch decisions, key variable-state transitions, and edge conditions such as negative values, exact balances, pass-Go boundary crossing, and trade/jail action paths.
+
+- Total test cases executed: **56**
+- Test result: **PASS**
+- Command output summary: `Ran 56 tests ... OK`
