@@ -14,19 +14,34 @@ Examples:
 
 | ID | Scenario Being Tested | Modules Involved | Expected Result | Actual Result After Testing | Errors / Logical Issues Found |
 |---|---|---|---|---|---|
-| IT-01 | Register a crew member, assign driver role, and enter race | Registration, Crew Management, Race Management, Inventory | Registered driver and good-condition vehicle can be added to race | PASS | None |
-| IT-02 | Try entering race with unregistered crew | Crew Management, Race Management | System should reject with error | PASS | None |
-| IT-03 | Try entering race with registered non-driver role | Registration, Crew Management, Race Management | System should reject because only drivers can race | PASS | None |
-| IT-04 | Complete race and record result with prize money deduction | Race Management, Results, Inventory | Race result saved; inventory cash reduced by prize amount; ranking updated | PASS | None |
-| IT-05 | Record race result when cash is insufficient | Results, Inventory | System should reject with insufficient funds error | PASS | None |
-| IT-06 | Create mission and validate role requirements (rescue/heist) | Registration, Crew Management, Mission Planning | Mission starts only when required roles are present | PASS | None |
-| IT-07 | Assign unregistered crew to mission | Registration, Mission Planning | System should reject assignment | PASS | None |
-| IT-08 | Damage vehicle then attempt to race | Inventory, Race Management | Damaged vehicle should be rejected from race | PASS | None |
-| IT-09 | Repair vehicle and verify condition/cost update | Inventory, Maintenance | Repair should reduce damage, improve condition, and deduct cash | PASS | Historical issue found during testing: missing parts in setup caused repair failure; fixed by adding required parts in test setup |
-| IT-10 | Track reputation after mission success/failure | Registration, Reputation | Success increases score; failure decreases score | PASS | Historical expectation mismatch found: default score maps to Professional, not Rookie; test corrected |
-| IT-11 | CLI mission creation with multiple crew using yes/no answers | CLI (main), Mission Planning, Registration, Crew Management | Using yes should continue assignment so 3 crew can be assigned for heist mission | PASS | **Detected and fixed:** CLI accepted only exact `y`; `yes` stopped assignment early (expected 3, actual 0 in failing run) |
-| IT-12 | End-to-end workflow: register -> role -> race -> result -> reputation | Registration, Crew Management, Inventory, Race Management, Results, Reputation | Full workflow should complete with consistent state updates | PASS | None |
-| IT-13 | End-to-end mission workflow with all required roles | Registration, Crew Management, Mission Planning | Mission should start and complete successfully | PASS | None |
+| IT-01 | CLI mission assignment accepts yes for multiple crew | CLI, Mission Planning, Registration, Crew Management | All entered crew IDs are attached to mission | PASS | Historical bug fixed earlier: CLI handled only y, now handles yes/no correctly |
+| IT-02 | Role assignment without registration | Registration, Crew Management | Assigning role to unknown crew must fail | PASS | None |
+| IT-03 | Registration followed by role assignment | Registration, Crew Management | Registered crew can receive valid role | PASS | None |
+| IT-04 | Registered crew details retrieval | Registration | Name lookup after registration is consistent | PASS | None |
+| IT-05 | Unregistered ID attempts to enter race | Crew Management, Race Management | Race entry is rejected | PASS | None |
+| IT-06 | Non-driver crew attempts to enter race | Registration, Crew Management, Race Management | Entry rejected due to role mismatch | PASS | None |
+| IT-07 | Driver registration to race participation happy path | Registration, Crew Management, Race Management, Inventory | Driver and vehicle are both recorded in race | PASS | None |
+| IT-08 | Race start readiness transition | Registration, Crew Management, Race Management, Inventory | Start fails when empty, passes after driver+vehicle added | PASS | None |
+| IT-09 | Duplicate driver entry into same race | Registration, Crew Management, Race Management | Second insertion of same driver is rejected | PASS | None |
+| IT-10 | Race result deducts prize from inventory cash | Registration, Crew Management, Race Management, Results, Inventory | Cash decreases by prize amount | PASS | None |
+| IT-11 | Race result fails on insufficient inventory funds | Results, Inventory | Recording result raises insufficient funds error | PASS | None |
+| IT-12 | Race win updates crew ranking counters | Registration, Crew Management, Race Management, Results | Wins and total prize fields increase correctly | PASS | None |
+| IT-13 | Assigning unregistered crew to mission | Registration, Mission Planning | Assignment is rejected | PASS | None |
+| IT-14 | Rescue mission with required roles | Registration, Crew Management, Mission Planning | Mission can start when driver+strategist present | PASS | None |
+| IT-15 | Heist mission missing roles | Registration, Crew Management, Mission Planning | Mission start blocked when required roles missing | PASS | None |
+| IT-16 | Surveillance mission requires strategist and spotter | Registration, Crew Management, Mission Planning | Start blocked first, then succeeds when spotter added | PASS | None |
+| IT-17 | CLI add driver and vehicle to race | CLI, Registration, Crew Management, Race Management, Inventory | CLI flow writes both driver and vehicle into race | PASS | None |
+| IT-18 | CLI record result updates result/reputation/cash | CLI, Race Management, Results, Inventory, Reputation | Result recorded, cash deducted, winner race count incremented | PASS | None |
+| IT-19 | Repair operation deducts cash from inventory | Inventory, Maintenance | Cash decreases by repair cost formula | PASS | None |
+| IT-20 | Vehicle condition improves after full repair | Inventory, Maintenance | Damaged vehicle becomes good after repair | PASS | None |
+| IT-21 | Damaged vehicle cannot be added to race | Inventory, Race Management | Race vehicle assignment is rejected | PASS | None |
+| IT-22 | Reputation initialization on first access | Registration, Reputation | Default reputation record created with baseline values | PASS | None |
+| IT-23 | Mission success increases reputation score | Registration, Reputation | Score increases after successful mission completion | PASS | None |
+| IT-24 | Mission failure decreases reputation score | Registration, Reputation | Score decreases after failed mission completion | PASS | None |
+| IT-25 | Reputation level progression with repeated success | Registration, Reputation | Level transitions according to score thresholds | PASS | Historical expectation corrected earlier: baseline level is Professional at score 50 |
+| IT-26 | End-to-end racing workflow | Registration, Crew Management, Inventory, Race Management, Results, Reputation | Register-role-race-result chain remains state consistent | PASS | None |
+| IT-27 | End-to-end mission workflow | Registration, Crew Management, Mission Planning | Mission lifecycle reaches completed status | PASS | None |
+| IT-28 | Vehicle damage-repair-rerace workflow | Inventory, Maintenance, Race Management, Crew Management, Registration | Damaged vehicle blocked, repaired vehicle accepted in next race | PASS | None |
 
 ## Error Log (Recorded Before Correction)
 
@@ -54,5 +69,5 @@ Examples:
 
 ## Final Verification
 - Command used: `python -m unittest -v test_integration.py`
-- Result: `Ran 23 tests ... OK`
+- Result: `Ran 28 tests ... OK`
 - Conclusion: Module interactions are working correctly for the tested call-graph scenarios, and detected integration issues were documented and fixed.
