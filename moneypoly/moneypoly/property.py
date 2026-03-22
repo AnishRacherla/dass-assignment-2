@@ -27,7 +27,7 @@ class Property:
         price,
         base_rent,
         group=None,
-    ):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    ):  
         self.name = name
         self.position = position
         self.price = price

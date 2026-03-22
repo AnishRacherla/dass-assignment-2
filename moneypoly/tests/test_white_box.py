@@ -4,9 +4,81 @@ import unittest
 from unittest.mock import patch
 
 from moneypoly.config import GO_SALARY, INCOME_TAX_AMOUNT, JAIL_FINE, LUXURY_TAX_AMOUNT
+from moneypoly.bank import Bank
+from moneypoly.board import Board
+from moneypoly.cards import CardDeck
 from moneypoly.game import Game
 from moneypoly.player import Player
 from moneypoly.property import Property, PropertyGroup
+
+
+class BankWhiteBoxTests(unittest.TestCase):
+    """Covers if/else and normal paths in Bank methods."""
+
+    def test_collect_negative_amount_is_ignored(self):
+        bank = Bank()
+        start_balance = bank.get_balance()
+
+        bank.collect(-100)
+
+        self.assertEqual(bank.get_balance(), start_balance)
+
+    def test_collect_positive_amount_is_added(self):
+        bank = Bank()
+        start_balance = bank.get_balance()
+
+        bank.collect(200)
+
+        self.assertEqual(bank.get_balance(), start_balance + 200)
+
+    def test_pay_out_negative_amount_returns_zero(self):
+        bank = Bank()
+        start_balance = bank.get_balance()
+
+        paid = bank.pay_out(-10)
+
+        self.assertEqual(paid, 0)
+        self.assertEqual(bank.get_balance(), start_balance)
+
+    def test_pay_out_normal_amount_reduces_funds(self):
+        bank = Bank()
+        start_balance = bank.get_balance()
+
+        paid = bank.pay_out(300)
+
+        self.assertEqual(paid, 300)
+        self.assertEqual(bank.get_balance(), start_balance - 300)
+
+    def test_pay_out_raises_when_amount_exceeds_funds(self):
+        bank = Bank()
+
+        with self.assertRaises(ValueError):
+            bank.pay_out(bank.get_balance() + 1)
+
+    def test_give_loan_negative_amount_is_ignored(self):
+        bank = Bank()
+        player = Player("LoanEdge")
+        start_bank = bank.get_balance()
+        start_player = player.balance
+
+        bank.give_loan(player, -50)
+
+        self.assertEqual(bank.get_balance(), start_bank)
+        self.assertEqual(player.balance, start_player)
+        self.assertEqual(bank.loan_count(), 0)
+
+    def test_give_loan_normal_amount_updates_player_and_bank(self):
+        bank = Bank()
+        player = Player("LoanNormal")
+        start_bank = bank.get_balance()
+        start_player = player.balance
+
+        bank.give_loan(player, 400)
+
+        self.assertEqual(bank.get_balance(), start_bank - 400)
+        self.assertEqual(player.balance, start_player + 400)
+        self.assertEqual(bank.loan_count(), 1)
+        self.assertEqual(bank.total_loans_issued(), 400)
 
 
 class PlayerWhiteBoxTests(unittest.TestCase):
@@ -64,6 +136,110 @@ class PropertyWhiteBoxTests(unittest.TestCase):
         prop.is_mortgaged = True
 
         self.assertEqual(prop.get_rent(), 0)
+
+
+class BoardWhiteBoxTests(unittest.TestCase):
+    """Covers branch behavior in board tile and purchasable checks."""
+
+    def setUp(self):
+        self.board = Board()
+
+    def test_get_property_at_returns_property_when_found(self):
+        prop = self.board.get_property_at(1)
+
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop.name, "Mediterranean Avenue")
+
+    def test_get_property_at_returns_none_when_missing(self):
+        prop = self.board.get_property_at(0)
+
+        self.assertIsNone(prop)
+
+    def test_get_tile_type_returns_special_for_special_tile(self):
+        self.assertEqual(self.board.get_tile_type(0), "go")
+
+    def test_get_tile_type_returns_property_for_property_tile(self):
+        self.assertEqual(self.board.get_tile_type(1), "property")
+
+    def test_get_tile_type_returns_blank_for_unknown_tile(self):
+        self.assertEqual(self.board.get_tile_type(12), "blank")
+
+    def test_is_purchasable_false_when_position_has_no_property(self):
+        self.assertFalse(self.board.is_purchasable(0))
+
+    def test_is_purchasable_false_when_property_is_mortgaged(self):
+        prop = self.board.get_property_at(1)
+        prop.is_mortgaged = True
+
+        self.assertFalse(self.board.is_purchasable(1))
+
+    def test_is_purchasable_false_when_property_is_owned(self):
+        prop = self.board.get_property_at(1)
+        prop.owner = Player("Owner")
+
+        self.assertFalse(self.board.is_purchasable(1))
+
+    def test_is_purchasable_true_when_unowned_and_not_mortgaged(self):
+        prop = self.board.get_property_at(1)
+        prop.owner = None
+        prop.is_mortgaged = False
+
+        self.assertTrue(self.board.is_purchasable(1))
+
+    def test_is_special_tile_true_and_false_paths(self):
+        self.assertTrue(self.board.is_special_tile(0))
+        self.assertFalse(self.board.is_special_tile(1))
+
+
+class CardDeckWhiteBoxTests(unittest.TestCase):
+    """Covers draw/peek branch paths for empty and non-empty decks."""
+
+    def test_draw_returns_none_when_deck_empty(self):
+        deck = CardDeck([])
+
+        self.assertIsNone(deck.draw())
+
+    def test_draw_cycles_cards_in_order(self):
+        cards = [
+            {"description": "A", "action": "collect", "value": 10},
+            {"description": "B", "action": "pay", "value": 5},
+        ]
+        deck = CardDeck(cards)
+
+        first = deck.draw()
+        second = deck.draw()
+        third = deck.draw()
+
+        self.assertEqual(first["description"], "A")
+        self.assertEqual(second["description"], "B")
+        self.assertEqual(third["description"], "A")
+
+    def test_peek_returns_none_when_deck_empty(self):
+        deck = CardDeck([])
+
+        self.assertIsNone(deck.peek())
+
+    def test_peek_does_not_advance_index(self):
+        cards = [{"description": "Only", "action": "collect", "value": 10}]
+        deck = CardDeck(cards)
+
+        peeked = deck.peek()
+        drawn = deck.draw()
+
+        self.assertEqual(peeked["description"], "Only")
+        self.assertEqual(drawn["description"], "Only")
+
+    def test_cards_remaining_reports_expected_count_before_cycle(self):
+        cards = [
+            {"description": "A", "action": "collect", "value": 10},
+            {"description": "B", "action": "pay", "value": 5},
+            {"description": "C", "action": "collect", "value": 20},
+        ]
+        deck = CardDeck(cards)
+
+        self.assertEqual(deck.cards_remaining(), 3)
+        deck.draw()
+        self.assertEqual(deck.cards_remaining(), 2)
 
 
 class GameWhiteBoxTests(unittest.TestCase):
@@ -324,8 +500,27 @@ class GameWhiteBoxTests(unittest.TestCase):
         prop = self.game.state.board.get_property_at(1)
 
         with patch("moneypoly.game.ui.safe_int_input", side_effect=[0, 0, 0]):
-            self.game.auction_property(prop)
+            won = self.game.auction_property(prop)
 
+        self.assertFalse(won)
+        self.assertIsNone(prop.owner)
+
+    def test_auction_property_negative_bids_are_treated_as_pass(self):
+        prop = self.game.state.board.get_property_at(1)
+
+        with patch("moneypoly.game.ui.safe_int_input", side_effect=[-10, -1, 0]):
+            won = self.game.auction_property(prop)
+
+        self.assertFalse(won)
+        self.assertIsNone(prop.owner)
+
+    def test_auction_property_returns_false_when_no_active_players(self):
+        prop = self.game.state.board.get_property_at(1)
+        self.game.players = []
+
+        won = self.game.auction_property(prop)
+
+        self.assertFalse(won)
         self.assertIsNone(prop.owner)
 
     def test_auction_property_with_winner_branch(self):
@@ -336,8 +531,9 @@ class GameWhiteBoxTests(unittest.TestCase):
             "moneypoly.game.ui.safe_int_input",
             side_effect=[5, 100, self.p3.balance + 1000],
         ):
-            self.game.auction_property(prop)
+            won = self.game.auction_property(prop)
 
+        self.assertTrue(won)
         self.assertEqual(prop.owner, self.p2)
         self.assertIn(prop, self.p2.properties)
         self.assertEqual(self.game.state.bank.get_balance(), start_bank + 100)
