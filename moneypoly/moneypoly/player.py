@@ -1,20 +1,92 @@
 """Player model and player-state operations for MoneyPoly."""
 
+from dataclasses import dataclass, field
+
 from moneypoly.config import STARTING_BALANCE, BOARD_SIZE, GO_SALARY, JAIL_POSITION
 
 
-class Player:  # pylint: disable=too-many-instance-attributes
+@dataclass
+class _PlayerState:
+    """Mutable gameplay state for a single player."""
+
+    balance: int
+    position: int = 0
+    properties: list = field(default_factory=list)
+    in_jail: bool = False
+    jail_turns: int = 0
+    get_out_of_jail_cards: int = 0
+    is_eliminated: bool = False
+
+
+class Player:
     """Represents a single player in a MoneyPoly game."""
 
     def __init__(self, name, balance=STARTING_BALANCE):
         self.name = name
-        self.balance = balance
-        self.position = 0
-        self.properties = []
-        self.in_jail = False
-        self.jail_turns = 0
-        self.get_out_of_jail_cards = 0
-        self.is_eliminated = False
+        self._state = _PlayerState(balance=balance)
+
+    @property
+    def balance(self):
+        """Current cash balance for this player."""
+        return self._state.balance
+
+    @balance.setter
+    def balance(self, value):
+        self._state.balance = value
+
+    @property
+    def position(self):
+        """Current board position for this player."""
+        return self._state.position
+
+    @position.setter
+    def position(self, value):
+        self._state.position = value
+
+    @property
+    def properties(self):
+        """Properties currently owned by this player."""
+        return self._state.properties
+
+    @properties.setter
+    def properties(self, value):
+        self._state.properties = value
+
+    @property
+    def in_jail(self):
+        """Whether the player is currently in jail."""
+        return self._state.in_jail
+
+    @in_jail.setter
+    def in_jail(self, value):
+        self._state.in_jail = value
+
+    @property
+    def jail_turns(self):
+        """How many turns the player has served in jail."""
+        return self._state.jail_turns
+
+    @jail_turns.setter
+    def jail_turns(self, value):
+        self._state.jail_turns = value
+
+    @property
+    def get_out_of_jail_cards(self):
+        """Number of Get Out of Jail Free cards held."""
+        return self._state.get_out_of_jail_cards
+
+    @get_out_of_jail_cards.setter
+    def get_out_of_jail_cards(self, value):
+        self._state.get_out_of_jail_cards = value
+
+    @property
+    def is_eliminated(self):
+        """Whether the player has been eliminated from the game."""
+        return self._state.is_eliminated
+
+    @is_eliminated.setter
+    def is_eliminated(self, value):
+        self._state.is_eliminated = value
 
 
     def add_money(self, amount):

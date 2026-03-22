@@ -1,5 +1,7 @@
 """Core game loop and turn-resolution logic for MoneyPoly."""
 
+from dataclasses import dataclass, field
+
 from moneypoly.config import (
     JAIL_FINE,
     AUCTION_MIN_INCREMENT,
@@ -16,19 +18,28 @@ from moneypoly.cards import CardDeck, CHANCE_CARDS, COMMUNITY_CHEST_CARDS
 from moneypoly import ui
 
 
-class Game:  # pylint: disable=too-many-instance-attributes
+@dataclass
+class GameState:
+    """Holds shared game components used across turns."""
+
+    board: Board = field(default_factory=Board)
+    bank: Bank = field(default_factory=Bank)
+    dice: Dice = field(default_factory=Dice)
+    chance_deck: CardDeck = field(default_factory=lambda: CardDeck(CHANCE_CARDS))
+    community_deck: CardDeck = field(
+        default_factory=lambda: CardDeck(COMMUNITY_CHEST_CARDS)
+    )
+
+
+class Game:
     """Manages the full state and flow of a MoneyPoly game session."""
 
     def __init__(self, player_names):
-        self.board = Board()
-        self.bank = Bank()
-        self.dice = Dice()
+        self.state = GameState()
         self.players = [Player(name) for name in player_names]
         self.current_index = 0
         self.turn_number = 0
         self.running = True
-        self.chance_deck = CardDeck(CHANCE_CARDS)
-        self.community_deck = CardDeck(COMMUNITY_CHEST_CARDS)
 
     def current_player(self):
         """Return the Player whose turn it currently is."""
@@ -51,11 +62,11 @@ class Game:  # pylint: disable=too-many-instance-attributes
             self.advance_turn()
             return
 
-        roll = self.dice.roll()
-        print(f"  {player.name} rolled: {self.dice.describe()}")
+        roll = self.state.dice.roll()
+        print(f"  {player.name} rolled: {self.state.dice.describe()}")
 
         # Three consecutive doubles sends a player to jail
-        if self.dice.doubles_streak >= 3:
+        if self.state.dice.doubles_streak >= 3:
             print(f"  {player.name} rolled doubles three times in a row — go to jail!")
             player.go_to_jail()
             self.advance_turn()
@@ -64,7 +75,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
         self._move_and_resolve(player, roll)
 
         # Rolling doubles earns an extra turn
-        if self.dice.is_doubles():
+        if self.state.dice.is_doubles():
             # we are just printing the message here but we are not giving
             # the player an extra turn that is why it is not working
             print(f"  Doubles! {player.name} rolls again.")
@@ -76,7 +87,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
         """Move `player` by `steps` and trigger whatever tile they land on."""
         player.move(steps)
         position = player.position
-        tile = self.board.get_tile_type(position)
+        tile = self.state.board.get_tile_type(position)
         print(f"  {player.name} moved to position {position}  [{tile}]")
 
         if tile == "go_to_jail":
@@ -85,32 +96,32 @@ class Game:  # pylint: disable=too-many-instance-attributes
 
         elif tile == "income_tax":
             player.deduct_money(INCOME_TAX_AMOUNT)
-            self.bank.collect(INCOME_TAX_AMOUNT)
+            self.state.bank.collect(INCOME_TAX_AMOUNT)
             print(f"  {player.name} paid income tax: ${INCOME_TAX_AMOUNT}.")
 
         elif tile == "luxury_tax":
             player.deduct_money(LUXURY_TAX_AMOUNT)
-            self.bank.collect(LUXURY_TAX_AMOUNT)
+            self.state.bank.collect(LUXURY_TAX_AMOUNT)
             print(f"  {player.name} paid luxury tax: ${LUXURY_TAX_AMOUNT}.")
 
         elif tile == "free_parking":
             print(f"  {player.name} rests on Free Parking. Nothing happens.")
 
         elif tile == "chance":
-            card = self.chance_deck.draw()
+            card = self.state.chance_deck.draw()
             self._apply_card(player, card)
 
         elif tile == "community_chest":
-            card = self.community_deck.draw()
+            card = self.state.community_deck.draw()
             self._apply_card(player, card)
 
         elif tile == "railroad":
-            prop = self.board.get_property_at(position)
+            prop = self.state.board.get_property_at(position)
             if prop is not None:
                 self._handle_property_tile(player, prop)
 
         elif tile == "property":
-            prop = self.board.get_property_at(position)
+            prop = self.state.board.get_property_at(position)
             if prop is not None:
                 self._handle_property_tile(player, prop)
 
@@ -144,7 +155,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
         player.deduct_money(prop.price)
         prop.owner = player
         player.add_property(prop)
-        self.bank.collect(prop.price)
+        self.state.bank.collect(prop.price)
         print(f"  {player.name} purchased {prop.name} for ${prop.price}.")
         return True
 
@@ -173,7 +184,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
             print(f"  {prop.name} is already mortgaged.")
             return False
         player.add_money(payout)
-        self.bank.collect(-payout)
+        self.state.bank.collect(-payout)
         print(f"  {player.name} mortgaged {prop.name} and received ${payout}.")
         return True
 
@@ -190,7 +201,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
             print(f"  {player.name} cannot afford to unmortgage {prop.name} (${cost}).")
             return False
         player.deduct_money(cost)
-        self.bank.collect(cost)
+        self.state.bank.collect(cost)
         print(f"  {player.name} unmortgaged {prop.name} for ${cost}.")
         return True
 
@@ -246,7 +257,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
             highest_bidder.deduct_money(highest_bid)
             prop.owner = highest_bidder
             highest_bidder.add_property(prop)
-            self.bank.collect(highest_bid)
+            self.state.bank.collect(highest_bid)
             print(
                 f"  {highest_bidder.name} won {prop.name} "
                 f"at auction for ${highest_bid}."
@@ -268,20 +279,20 @@ class Game:  # pylint: disable=too-many-instance-attributes
                 player.in_jail = False
                 player.jail_turns = 0
                 print(f"  {player.name} used a Get Out of Jail Free card!")
-                roll = self.dice.roll()
-                print(f"  {player.name} rolled: {self.dice.describe()}")
+                roll = self.state.dice.roll()
+                print(f"  {player.name} rolled: {self.state.dice.describe()}")
                 self._move_and_resolve(player, roll)
                 return
 
         # Offer to pay the fine voluntarily
         if ui.confirm(f"  Pay ${JAIL_FINE} fine to leave jail? (y/n): "):
             player.deduct_money(JAIL_FINE)
-            self.bank.collect(JAIL_FINE)
+            self.state.bank.collect(JAIL_FINE)
             player.in_jail = False
             player.jail_turns = 0
             print(f"  {player.name} paid the ${JAIL_FINE} fine and is released.")
-            roll = self.dice.roll()
-            print(f"  {player.name} rolled: {self.dice.describe()}")
+            roll = self.state.dice.roll()
+            print(f"  {player.name} rolled: {self.state.dice.describe()}")
             self._move_and_resolve(player, roll)
             return
 
@@ -292,11 +303,11 @@ class Game:  # pylint: disable=too-many-instance-attributes
             # Mandatory release after 3 turns
             print(f"  {player.name} must leave jail. Paying mandatory ${JAIL_FINE} fine.")
             player.deduct_money(JAIL_FINE)
-            self.bank.collect(JAIL_FINE)
+            self.state.bank.collect(JAIL_FINE)
             player.in_jail = False
             player.jail_turns = 0
-            roll = self.dice.roll()
-            print(f"  {player.name} rolled: {self.dice.describe()}")
+            roll = self.state.dice.roll()
+            print(f"  {player.name} rolled: {self.state.dice.describe()}")
             self._move_and_resolve(player, roll)
 
     def _apply_card(self, player, card):  # pylint: disable=too-many-branches
@@ -308,12 +319,12 @@ class Game:  # pylint: disable=too-many-instance-attributes
         value = card["value"]
 
         if action == "collect":
-            amount = self.bank.pay_out(value)
+            amount = self.state.bank.pay_out(value)
             player.add_money(amount)
 
         elif action == "pay":
             player.deduct_money(value)
-            self.bank.collect(value)
+            self.state.bank.collect(value)
 
         elif action == "jail":
             player.go_to_jail()
@@ -329,10 +340,10 @@ class Game:  # pylint: disable=too-many-instance-attributes
             if value < old_pos:
                 player.add_money(GO_SALARY)
                 print(f"  {player.name} passed Go and collected ${GO_SALARY}.")
-            tile = self.board.get_tile_type(value)
+            tile = self.state.board.get_tile_type(value)
             if tile == "property":
                 # why only title is there here other cases are not there
-                prop = self.board.get_property_at(value)
+                prop = self.state.board.get_property_at(value)
                 if prop:
                     self._handle_property_tile(player, prop)
 
@@ -414,7 +425,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
             if choice == 1:
                 ui.print_standings(self.players)
             elif choice == 2:
-                ui.print_board_ownership(self.board)
+                ui.print_board_ownership(self.state.board)
             elif choice == 3:
                 self._menu_mortgage(player)
             elif choice == 4:
@@ -424,7 +435,7 @@ class Game:  # pylint: disable=too-many-instance-attributes
             elif choice == 6:
                 amount = ui.safe_int_input("  Loan amount: ", default=0)
                 if amount > 0:
-                    self.bank.give_loan(player, amount)
+                    self.state.bank.give_loan(player, amount)
 
     def _menu_mortgage(self, player):
         """Interactively select a property to mortgage."""

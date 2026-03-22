@@ -1,6 +1,21 @@
 """Property and property-group models used by the MoneyPoly board."""
 
-class Property:  # pylint: disable=too-many-instance-attributes
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass
+class _PropertyState:
+    """Mutable ownership and mortgage state for a property."""
+
+    mortgage_value: int
+    owner: Any = None
+    is_mortgaged: bool = False
+    houses: int = 0
+    group: "PropertyGroup | None" = None
+
+
+class Property:
     """Represents a single purchasable property tile on the MoneyPoly board."""
 
     FULL_GROUP_MULTIPLIER = 2
@@ -17,15 +32,52 @@ class Property:  # pylint: disable=too-many-instance-attributes
         self.position = position
         self.price = price
         self.base_rent = base_rent
-        self.mortgage_value = price // 2
-        self.owner = None
-        self.is_mortgaged = False
-        self.houses = 0
+        self._state = _PropertyState(mortgage_value=price // 2, group=group)
 
         # Register with the group immediately on creation
-        self.group = group
-        if group is not None and self not in group.properties:
-            group.properties.append(self)
+        if self.group is not None and self not in self.group.properties:
+            self.group.properties.append(self)
+
+    @property
+    def mortgage_value(self):
+        """Cash received when mortgaging this property."""
+        return self._state.mortgage_value
+
+    @property
+    def owner(self):
+        """Current owner of the property, or None if unowned."""
+        return self._state.owner
+
+    @owner.setter
+    def owner(self, value):
+        self._state.owner = value
+
+    @property
+    def is_mortgaged(self):
+        """Whether rent collection is disabled by mortgage."""
+        return self._state.is_mortgaged
+
+    @is_mortgaged.setter
+    def is_mortgaged(self, value):
+        self._state.is_mortgaged = value
+
+    @property
+    def houses(self):
+        """Number of houses built on this property."""
+        return self._state.houses
+
+    @houses.setter
+    def houses(self, value):
+        self._state.houses = value
+
+    @property
+    def group(self):
+        """PropertyGroup this property belongs to, if any."""
+        return self._state.group
+
+    @group.setter
+    def group(self, value):
+        self._state.group = value
 
     def get_rent(self):
         """
@@ -65,7 +117,7 @@ class Property:  # pylint: disable=too-many-instance-attributes
         return self.owner is None and not self.is_mortgaged
 
     def __repr__(self):
-        owner_name = self.owner.name if self.owner else "unowned"
+        owner_name = getattr(self.owner, "name", "unowned") if self.owner else "unowned"
         return f"Property({self.name!r}, pos={self.position}, owner={owner_name!r})"
 
 
