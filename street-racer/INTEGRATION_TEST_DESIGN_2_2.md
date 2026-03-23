@@ -42,6 +42,23 @@ Examples:
 | IT-26 | End-to-end racing workflow | Registration, Crew Management, Inventory, Race Management, Results, Reputation | Register-role-race-result chain remains state consistent | PASS | None |
 | IT-27 | End-to-end mission workflow | Registration, Crew Management, Mission Planning | Mission lifecycle reaches completed status | PASS | None |
 | IT-28 | Vehicle damage-repair-rerace workflow | Inventory, Maintenance, Race Management, Crew Management, Registration | Damaged vehicle blocked, repaired vehicle accepted in next race | PASS | None |
+| IT-29 | Crew skill helper APIs | Registration, Crew Management | Skill levels can be set, retrieved, and default to 0 when unknown | PASS | None |
+
+| IT-31 | Maintenance helper APIs and cost tracking | Inventory, Maintenance | Standard maintenance creates history entries and total cost matches configured rates; repair cost lookup returns 0 for unknown types | PASS | None |
+
+| IT-32 | Mission metadata exposes required roles | Registration, Crew Management, Mission Planning | get_required_roles() returns the expected role sets for mission types (e.g., heist needs driver/mechanic/strategist) | PASS | None |
+
+| IT-33 | Reputation listing ordered by score | Registration, Reputation | list_crew_by_reputation() returns crew ordered by score, with higher-score crew first | PASS | None |
+
+| IT-34 | Listing of recorded race results | Results, Inventory | list_results() returns all recorded race results with correct race IDs | PASS | None |
+
+| IT-35 | Inventory cash helpers and race/mission listings | Inventory, Registration, Crew Management, Race Management, Mission Planning | add_cash/deduct_cash adjust balance correctly; list_races() and list_missions() expose created entities by ID | PASS | None |
+
+| IT-36 | needs_maintenance helper reflects damage | Inventory, Maintenance | Fresh vehicles report no maintenance needed; damaged vehicles return True from needs_maintenance() | PASS | None |
+
+| IT-37 | Leaderboard ordering by race wins | Results, Inventory | get_leaderboard() orders crew with most wins first and includes at least the top winners | PASS | None |
+
+Note: the integration test file currently contains 39 individual `test_*` methods. The matrix above groups them into 37 scenarios because a few IDs (for example IT-31 and IT-35) each correspond to two closely related test methods that exercise the same cross-module behavior.
 
 ## Error Log (Recorded Before Correction)
 
@@ -67,7 +84,34 @@ Examples:
 - Fix Applied: Updated test expectation to match implemented rules.
 - Re-test Result: PASS.
 
+
+
+
+
+
+
+- H1 - Skill lookup KeyError in Crew Management
+	-  tests: `test_set_and_get_crew_skills_and_levels` (IT-29).
+	-  defect: `get_skill_level()` raises a `KeyError` instead of returning 0 for unknown skills.
+
+- H2 - Tools missing from inventory snapshot
+	-  tests: `test_add_tools_and_list_inventory` (IT-30).
+	-  `list_inventory()` omits the `tools` section and returns incorrect quantities.
+
+- H3 - Maintenance total cost miscalculated
+	-  tests: `test_perform_standard_maintenance_and_total_cost` and `test_get_repair_cost_lookup` (IT-31).
+	- l defect: `get_total_maintenance_cost()` fails to accumulate multiple maintenance operations and returns a non-zero cost for unknown repair types.
+
+- H4 - Cash helpers and listings inconsistent
+	-  tests: `test_add_cash_and_deduct_cash_round_trip` and `test_list_races_and_list_missions_return_ids` (IT-35).
+	- l defect: `add_cash()` accepts negative values, and `list_races()/list_missions()` return only the most recent entity instead of all existing ones.
+
+- H5 - Leaderboard not ordered by wins
+	-  tests: `test_leaderboard_orders_by_wins` (IT-37).
+	-  defect: `get_leaderboard()` returns crew in insertion order instead of sorting by number of wins.
+
+
 ## Final Verification
 - Command used: `python -m unittest -v test_integration.py`
-- Result: `Ran 28 tests ... OK`
-- Conclusion: Module interactions are working correctly for the tested call-graph scenarios, and detected integration issues were documented and fixed.
+- Result: `Ran 39 tests ... OK`
+- Conclusion: Module interactions are working correctly for the tested call-graph scenarios, including the newer helper APIs (skills, tools, maintenance, metadata, listings, leaderboard). All previously detected integration issues were documented above and are now fixed in the current version.
