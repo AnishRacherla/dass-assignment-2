@@ -4,6 +4,10 @@ Tests module interactions, business rule enforcement, and data consistency
 across module boundaries.
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'code')))
+
 import unittest
 from registration_module import RegistrationModule
 from crew_management_module import CrewManagementModule

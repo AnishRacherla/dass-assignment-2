@@ -1,5 +1,9 @@
 """White-box tests for branch, state, and edge-case coverage in MoneyPoly."""
 
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'code')))
+
 import unittest
 from unittest.mock import patch
 
