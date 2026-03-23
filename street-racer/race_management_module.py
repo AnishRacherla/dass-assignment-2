@@ -99,7 +99,7 @@ class RaceManagementModule:
             raise ValueError(f"Vehicle {vehicle_id} already in this race")
 
         self.races[race_id]["vehicles"].append(vehicle_id)
-
+####################didnt use thsi functions
     def get_race(self, race_id):
         """Get race details."""
         if race_id not in self.races:
@@ -112,32 +112,32 @@ class RaceManagementModule:
             {**self.races[rid], "id": rid} for rid in sorted(self.races.keys())
         ]
 
-    def is_race_ready(self, race_id):
+    def is_race_ready(self, race_id):#didnt use this function
         """Check if race has at least one driver and vehicle."""
         if race_id not in self.races:
             return False
         race = self.races[race_id]
         return len(race["drivers"]) > 0 and len(race["vehicles"]) > 0
 
-    def start_race(self, race_id):
+    def start_race(self, race_id):##didnt use this function
         """Start a race that has participants."""
         if not self.is_race_ready(race_id):
             raise ValueError("Race must have at least one driver and one vehicle")
         self.races[race_id]["status"] = "started"
 
-    def get_race_drivers(self, race_id):
+    def get_race_drivers(self, race_id):#didnt use this fucntion
         """Get list of driver IDs for a race."""
         if race_id not in self.races:
             raise ValueError(f"Race {race_id} not found")
         return self.races[race_id]["drivers"].copy()
 
-    def get_race_vehicles(self, race_id):
+    def get_race_vehicles(self, race_id):#didnt use this function
         """Get list of vehicle IDs for a race."""
         if race_id not in self.races:
             raise ValueError(f"Race {race_id} not found")
         return self.races[race_id]["vehicles"].copy()
 
-    def get_race_prize(self, race_id):
+    def get_race_prize(self, race_id):#didnt ue this function
         """Get prize amount for a race."""
         if race_id not in self.races:
             raise ValueError(f"Race {race_id} not found")

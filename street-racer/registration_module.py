@@ -30,7 +30,7 @@ class RegistrationModule:
         self.next_id += 1
         return crew_id
 
-    def get_crew(self, crew_id):
+    def get_crew(self, crew_id):#didnt use this functions
         """Get crew member details by ID."""
         if crew_id not in self.crew_members:
             raise ValueError(f"Crew member {crew_id} not found")
@@ -43,6 +43,6 @@ class RegistrationModule:
             for cid in sorted(self.crew_members.keys())
         ]
 
-    def crew_exists(self, crew_id):
+    def crew_exists(self, crew_id):#didn t use this function
         """Check if crew member is registered."""
         return crew_id in self.crew_members

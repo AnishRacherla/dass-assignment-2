@@ -536,5 +536,201 @@ class TestCompleteWorkflow(unittest.TestCase):
         self.races.start_race(race2_id)
 
 
+class TestCrewSkillsAPIs(unittest.TestCase):
+    """Integration-style tests exercising crew skill helper APIs."""
+
+    def setUp(self):
+        self.registration = RegistrationModule()
+        self.crew_mgmt = CrewManagementModule(self.registration)
+
+    def test_set_and_get_crew_skills_and_levels(self):
+        crew_id = self.registration.register_crew("Skillful Racer")
+
+        # Assign role to ensure crew is considered valid
+        self.crew_mgmt.assign_role(crew_id, "driver")
+
+        self.crew_mgmt.set_skill_level(crew_id, "drifting", 7)
+        self.crew_mgmt.set_skill_level(crew_id, "diagnostics", 4)
+
+        skills = self.crew_mgmt.get_crew_skills(crew_id)
+        self.assertEqual(skills["drifting"], 7)
+        self.assertEqual(skills["diagnostics"], 4)
+
+        self.assertEqual(self.crew_mgmt.get_skill_level(crew_id, "drifting"), 7)
+        self.assertEqual(self.crew_mgmt.get_skill_level(crew_id, "unknown"), 0)
+
+
+class TestInventoryToolsAndListing(unittest.TestCase):
+    """Integration-style tests for inventory tools and listing helpers."""
+
+    def setUp(self):
+        self.inventory = InventoryModule(initial_cash=15000)
+
+    def test_add_tools_and_list_inventory(self):
+        self.inventory.add_tool("wrench", 3)
+        self.inventory.add_tool("jack", 1)
+
+        self.assertEqual(self.inventory.get_tool_quantity("wrench"), 3)
+        self.assertEqual(self.inventory.get_tool_quantity("jack"), 1)
+
+        snapshot = self.inventory.list_inventory()
+        tool_names = set(snapshot["tools"].keys())
+        self.assertIn("wrench", tool_names)
+        self.assertIn("jack", tool_names)
+
+
+class TestMaintenanceHelperAPIs(unittest.TestCase):
+    """Integration-style tests for maintenance helper APIs."""
+
+    def setUp(self):
+        self.inventory = InventoryModule(initial_cash=20000)
+        self.inventory.add_part("oil", 5)
+        self.inventory.add_part("filters", 5)
+        self.maintenance = MaintenanceModule(self.inventory)
+
+    def test_perform_standard_maintenance_and_total_cost(self):
+        vehicle_id = self.inventory.add_vehicle("Service Car")
+
+        # Perform standard maintenance twice
+        self.maintenance.perform_standard_maintenance(vehicle_id)
+        self.maintenance.perform_standard_maintenance(vehicle_id)
+
+        history = self.maintenance.get_maintenance_history(vehicle_id)
+        self.assertEqual(len(history), 2)
+
+        total_cost = self.maintenance.get_total_maintenance_cost(vehicle_id)
+        # Each standard maintenance uses the configured oil_change cost
+        expected_single_cost = self.maintenance.repair_costs["oil_change"]
+        self.assertEqual(total_cost, 2 * expected_single_cost)
+
+    def test_get_repair_cost_lookup(self):
+        self.assertGreater(self.maintenance.get_repair_cost("engine_overhaul"), 0)
+        self.assertEqual(self.maintenance.get_repair_cost("unknown_type"), 0)
+
+
+class TestMissionMetadataAPIs(unittest.TestCase):
+    """Tests for mission metadata helper functions like get_required_roles."""
+
+    def setUp(self):
+        self.registration = RegistrationModule()
+        self.crew_mgmt = CrewManagementModule(self.registration)
+        self.missions = MissionPlanningModule(self.registration, self.crew_mgmt)
+
+    def test_get_required_roles_exposes_mission_contract(self):
+        heist_roles = self.missions.get_required_roles("heist")
+        self.assertIn("driver", heist_roles)
+        self.assertIn("mechanic", heist_roles)
+        self.assertIn("strategist", heist_roles)
+
+
+class TestReputationListingAPIs(unittest.TestCase):
+    """Tests for listing crew by reputation score."""
+
+    def setUp(self):
+        self.registration = RegistrationModule()
+        self.reputation = ReputationModule(self.registration)
+
+    def test_list_crew_by_reputation_orders_by_score(self):
+        low_id = self.registration.register_crew("Low Rep")
+        high_id = self.registration.register_crew("High Rep")
+
+        # Boost one crew member's score
+        for _ in range(5):
+            self.reputation.record_mission_completion(high_id, successful=True)
+
+        listing = self.reputation.list_crew_by_reputation()
+        crew_ids_in_order = [entry["crew_id"] for entry in listing]
+
+        # Only the crew that has reputation activity must appear,
+        # and it should be first in the sorted list.
+        self.assertIn(high_id, crew_ids_in_order)
+        self.assertEqual(crew_ids_in_order[0], high_id)
+
+
+class TestResultsListingAPIs(unittest.TestCase):
+    """Tests for listing recorded race results."""
+
+    def setUp(self):
+        self.inventory = InventoryModule(initial_cash=50000)
+        self.results = ResultsModule(self.inventory)
+
+    def test_list_results_returns_all_recorded_races(self):
+        # Record two results with different race IDs
+        self.results.record_result(1, winner_crew_id=10, prize_amount=1000)
+        self.results.record_result(2, winner_crew_id=20, prize_amount=2000)
+
+        results_list = self.results.list_results()
+        race_ids = {entry["race_id"] for entry in results_list}
+
+        self.assertEqual(race_ids, {1, 2})
+
+
+class TestInventoryCashAndListingAPIs(unittest.TestCase):
+    """Additional tests for cash helpers and vehicle/mission listings."""
+
+    def setUp(self):
+        self.inventory = InventoryModule(initial_cash=1000)
+        self.registration = RegistrationModule()
+        self.crew_mgmt = CrewManagementModule(self.registration)
+        self.races = RaceManagementModule(self.crew_mgmt, self.inventory)
+        self.missions = MissionPlanningModule(self.registration, self.crew_mgmt)
+
+    def test_add_cash_and_deduct_cash_round_trip(self):
+        self.inventory.add_cash(500)
+        self.assertEqual(self.inventory.get_balance(), 1500)
+
+        self.inventory.deduct_cash(200)
+        self.assertEqual(self.inventory.get_balance(), 1300)
+
+    def test_list_races_and_list_missions_return_ids(self):
+        r1 = self.races.create_race("Sprint", 1000)
+        r2 = self.races.create_race("Endurance", 2000)
+
+        m1 = self.missions.create_mission("delivery", "City A")
+        m2 = self.missions.create_mission("parts_run", "City B")
+
+        race_ids = {race["id"] for race in self.races.list_races()}
+        mission_ids = {mission["id"] for mission in self.missions.list_missions()}
+
+        self.assertEqual(race_ids, {r1, r2})
+        self.assertEqual(mission_ids, {m1, m2})
+
+
+class TestMaintenanceNeedsMaintenanceAPI(unittest.TestCase):
+    """Tests for the needs_maintenance helper on vehicles."""
+
+    def setUp(self):
+        self.inventory = InventoryModule(initial_cash=5000)
+        self.maintenance = MaintenanceModule(self.inventory)
+
+    def test_needs_maintenance_reflects_vehicle_damage(self):
+        vehicle_id = self.inventory.add_vehicle("Service Van")
+
+        # Fresh vehicle should not need maintenance
+        self.assertFalse(self.maintenance.needs_maintenance(vehicle_id))
+
+        # After damage, maintenance should be required
+        self.inventory.damage_vehicle(vehicle_id, 5)
+        self.assertTrue(self.maintenance.needs_maintenance(vehicle_id))
+
+
+class TestLeaderboardAPI(unittest.TestCase):
+    """Tests for the leaderboard helper in ResultsModule."""
+
+    def setUp(self):
+        self.inventory = InventoryModule(initial_cash=50000)
+        self.results = ResultsModule(self.inventory)
+
+    def test_leaderboard_orders_by_wins(self):
+        # Crew 1 wins two races, crew 2 wins one
+        self.results.record_result(1, winner_crew_id=1, prize_amount=1000)
+        self.results.record_result(2, winner_crew_id=1, prize_amount=2000)
+        self.results.record_result(3, winner_crew_id=2, prize_amount=1500)
+
+        leaderboard = self.results.get_leaderboard()
+        self.assertGreaterEqual(len(leaderboard), 2)
+        self.assertEqual(leaderboard[0]["crew_id"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
