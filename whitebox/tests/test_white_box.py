@@ -131,6 +131,16 @@ class PropertyWhiteBoxTests(unittest.TestCase):
 
         self.assertEqual(p1.get_rent(), 4)
 
+    def test_partial_group_ownership_does_not_double_rent(self):
+        owner = Player("Owner")
+        group = PropertyGroup("Brown", "brown")
+        p1 = Property("Mediterranean Avenue", 1, 60, 2, group)
+        p2 = Property("Baltic Avenue", 3, 60, 4, group)
+        p1.owner = owner
+
+        # Only one property in the group is owned, so rent should not be doubled
+        self.assertEqual(p1.get_rent(), 2)
+
     def test_mortgaged_property_has_zero_rent(self):
         prop = Property("Test Lane", 1, 100, 10)
         prop.is_mortgaged = True
@@ -793,6 +803,16 @@ class GameWhiteBoxTests(unittest.TestCase):
         winner = self.game.find_winner()
 
         self.assertIsNone(winner)
+
+    def test_find_winner_returns_highest_net_worth_player(self):
+        # Give p2 the highest net worth via balance
+        self.p1.balance = 100
+        self.p2.balance = 500
+        self.p3.balance = 300
+
+        winner = self.game.find_winner()
+
+        self.assertEqual(winner, self.p2)
 
 
 if __name__ == "__main__":
