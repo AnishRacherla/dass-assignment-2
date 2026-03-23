@@ -536,3 +536,422 @@ def test_support_ticket_valid_payload_creates_ticket():
     data = response.json()
     assert isinstance(data, dict)
     assert any(key in data for key in ["ticket_id", "id", "subject"])
+# ---------------------------
+# 🔹 PROFILE
+# ---------------------------
+
+def test_profile_update_short_name():
+    payload = {"name": "A", "phone": "1234567890"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_update_invalid_phone():
+    payload = {"name": "Valid Name", "phone": "123456789"} # 9 digits
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_update_valid():
+    payload = {"name": "John Doe", "phone": "1234567890"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 200
+
+# ---------------------------
+# 🔹 ADDRESSES
+# ---------------------------
+
+def test_address_add_invalid_label():
+    payload = {
+        "label": "INVALID_LABEL",
+        "street": "123 Main St",
+        "city": "Metropolis",
+        "pincode": "123456"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_add_short_street():
+    payload = {
+        "label": "HOME",
+        "street": "123", # < 5
+        "city": "Metropolis",
+        "pincode": "123456"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_add_invalid_pincode():
+    payload = {
+        "label": "HOME",
+        "street": "123 Main St",
+        "city": "Metropole",
+        "pincode": "12345" # < 6 digits
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_update_illegal_field_city():
+    # Fetch an ID first (assuming user 1 has at least 1 address)
+    resp = requests.get(f"{BASE_URL}/addresses", headers=VALID_HEADERS)
+    if resp.status_code == 200 and len(resp.json()) > 0:
+        addr_id = resp.json()[0]["address_id"]
+        # Try to modify city which is forbidden
+        payload = {"city": "New City", "street": "Brand New Street"}
+        put_resp = requests.put(f"{BASE_URL}/addresses/{addr_id}", json=payload, headers=VALID_HEADERS)
+        # Should not update the city or should throw 400
+        assert put_resp.status_code in [400, 200]
+        if put_resp.status_code == 200:
+            assert put_resp.json()["address"]["city"] != "New City"
+
+# ---------------------------
+# 🔹 LOYALTY POINTS
+# ---------------------------
+
+def test_loyalty_redeem_zero_points():
+    payload = {"points": 0}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_redeem_negative_points():
+    payload = {"points": -5}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+# ---------------------------
+# 🔹 ORDERS 
+# ---------------------------
+
+def test_order_cancel_non_existent():
+    response = requests.post(f"{BASE_URL}/orders/99999/cancel", headers=VALID_HEADERS)
+    assert response.status_code == 404
+
+# ---------------------------
+# 🔹 TICKETS
+# ---------------------------
+
+def test_ticket_create_short_subject():
+    payload = {"subject": "abc", "message": "Valid long message."}
+    response = requests.post(f"{BASE_URL}/support/ticket", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_ticket_update_status_backward():
+    # Try updating a non-existent ticket to CLOSED (expecting 404, not internal error)
+    payload = {"status": "CLOSED"}
+    response = requests.put(f"{BASE_URL}/support/tickets/99999", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 404
+
+
+def test_loyalty_negative_balance():
+    # Trying to redeem more points than what user has
+    # User likely has 0 points
+    payload = {"points": 99999}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_ticket_injection():
+    # Potential SQL injection in message or subject
+    payload = {"subject": "Test Ticket", "message": "' OR 1=1; DROP TABLE tickets; --"}
+    response = requests.post(f"{BASE_URL}/support/ticket", json=payload, headers=VALID_HEADERS)
+    assert response.status_code in [200, 201]
+    
+def test_address_negative_pincode():
+    payload = {
+        "label": "HOME",
+        "street": "123 Main St",
+        "city": "Metropolis",
+        "pincode": "-12345"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_empty_payload():
+    response = requests.put(f"{BASE_URL}/profile", json={}, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_float_points():
+    payload = {"points": 10.5}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+
+def test_loyalty_redeem_no_points_field():
+    payload = {}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_missing_label():
+    payload = {
+        "street": "123 Main St",
+        "city": "Metropolis",
+        "pincode": "123456"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_missing_street():
+    payload = {
+        "label": "HOME",
+        "city": "Metropolis",
+        "pincode": "123456"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_missing_city():
+    payload = {
+        "label": "HOME",
+        "street": "123 Main St",
+        "pincode": "123456"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_missing_pincode():
+    payload = {
+        "label": "HOME",
+        "street": "123 Main St",
+        "city": "Metropolis"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_update_missing_name():
+    payload = {"phone": "1234567890"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_update_missing_phone():
+    payload = {"name": "John Doe"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_point_redemption_exceeds_available():
+    # User tries to redeem 1 point but doesn't have enough. (They might have 0)
+    payload = {"points": 1}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    # The server might allow this or maybe it's returning a 400.
+    assert response.status_code == 400
+    
+def test_ticket_update_status_invalid():
+    payload = {"status": "INVALID_STATUS"}
+    # Using 1 as we know there is a chance it exists. If not, it will be 404. Let's create one.
+    ticket_payload = {"subject": "Need help", "message": "Can't find my order."}
+    ticket_res = requests.post(f"{BASE_URL}/support/ticket", json=ticket_payload, headers=VALID_HEADERS)
+    
+    if ticket_res.status_code in [200, 201]:
+        ticket_id = ticket_res.json().get("ticket_id")
+        response = requests.put(f"{BASE_URL}/support/tickets/{ticket_id}", json=payload, headers=VALID_HEADERS)
+        assert response.status_code == 400
+
+def test_support_ticket_subject_too_long():
+    long_subject = "A" * 105
+    payload = {"subject": long_subject, "message": "My issue is detailed"}
+    response = requests.post(f"{BASE_URL}/support/ticket", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+    
+def test_checkout_invalid_payment_method():
+    # We should have something in the cart
+    requests.post(f"{BASE_URL}/cart/add", json={"product_id": 1, "quantity": 1}, headers=VALID_HEADERS)
+    payload = {"payment_method": "INVALID"}
+    response = requests.post(f"{BASE_URL}/checkout", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+    
+def test_order_history_empty_pagination():
+    response = requests.get(f"{BASE_URL}/orders?page=-1", headers=VALID_HEADERS)
+    assert response.status_code == 400
+    
+def test_loyalty_redeem_non_integer_points():
+    payload = {"points": "two"}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_redeem_boolean_points():
+    payload = {"points": True}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_redeem_empty_points():
+    payload = {"points": ""}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_update_long_name():
+    # > 50 characters
+    payload = {"name": "A" * 55, "phone": "1234567890"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_update_non_string_name():
+    payload = {"name": 123456, "phone": "1234567890"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_add_long_street():
+    payload = {
+        "label": "HOME",
+        "street": "A" * 105, # > 100 characters
+        "city": "Metropolis",
+        "pincode": "123456"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_ticket_add_long_message():
+    # > 1000 characters
+    payload = {"subject": "Need help", "message": "A" * 1050}
+    response = requests.post(f"{BASE_URL}/support/ticket", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_redeem_very_large_points():
+    payload = {"points": 99999999999999999999999}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_checkout_missing_payment_method():
+    payload = {}
+    response = requests.post(f"{BASE_URL}/checkout", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_wallet_balance_after_successful_checkout_cod():
+    # Adding items + Checking out shouldn't deduct wallet money for COD
+    # Get initial
+    wallet_resp1 = requests.get(f"{BASE_URL}/wallet", headers=VALID_HEADERS)
+    assert wallet_resp1.status_code == 200
+    initial_bal = wallet_resp1.json()["balance"]
+
+    # add to cart
+    requests.post(f"{BASE_URL}/cart/add", json={"product_id": 1, "quantity": 1}, headers=VALID_HEADERS)
+    # checkout COD
+    response = requests.post(f"{BASE_URL}/checkout", json={"payment_method": "COD"}, headers=VALID_HEADERS)
+    assert response.status_code in [200, 201]
+
+    wallet_resp2 = requests.get(f"{BASE_URL}/wallet", headers=VALID_HEADERS)
+    assert wallet_resp2.json()["balance"] == initial_bal
+
+def test_order_history_invalid_page_type():
+    response = requests.get(f"{BASE_URL}/orders?page=abc", headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_put_profile_without_name():
+    payload = {"phone": "1314151617"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_delete_non_existent_address():
+    response = requests.delete(f"{BASE_URL}/addresses/9999", headers=VALID_HEADERS)
+    assert response.status_code == 404
+
+def test_apply_coupon_empty_discount():
+    payload = {"code": "NEW50", "discount_value": ""}
+    response = requests.post(f"{BASE_URL}/coupons/apply", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_order_cancel_invalid_id_type():
+    response = requests.post(f"{BASE_URL}/orders/abc/cancel", headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_apply_coupon_negative_discount():
+    payload = {"code": "MYCOUPON", "discount_value": -10}
+    response = requests.post(f"{BASE_URL}/coupons/apply", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_profile_update_phone_with_letters():
+    payload = {"name": "Valid Name", "phone": "12345abcde"}
+    response = requests.put(f"{BASE_URL}/profile", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_address_add_non_numeric_pincode():
+    payload = {
+        "label": "HOME",
+        "street": "123 Main St",
+        "city": "Metropolis",
+        "pincode": "abcdef"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_review_non_existent_product():
+    payload = {"rating": 5, "comment": "Great!"}
+    response = requests.post(f"{BASE_URL}/products/9999999/reviews", json=payload, headers=VALID_HEADERS)
+    # The spec typically says 404 for related non-existent entities, or 400.
+    assert response.status_code in [400, 404]
+
+def test_review_integer_comment():
+    payload = {"rating": 5, "comment": 12345}
+    response = requests.post(f"{BASE_URL}/products/1/reviews", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_cart_add_boolean_quantity():
+    payload = {"product_id": 1, "quantity": True}
+    response = requests.post(f"{BASE_URL}/cart/add", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_support_ticket_invalid_id_type():
+    payload = {"status": "CLOSED"}
+    response = requests.put(f"{BASE_URL}/support/tickets/abc", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+def test_delete_cart_item_missing_auth():
+    response = requests.delete(f"{BASE_URL}/cart/remove/1")
+    assert response.status_code == 401
+
+def test_delete_cart_item_invalid_product():
+    response = requests.delete(f"{BASE_URL}/cart/remove/abc", headers=VALID_HEADERS)
+    assert response.status_code == 400
+def test_address_add_boolean_city():
+    payload = {
+        "label": "HOME",
+        "street": "123 Main St",
+        "city": True,
+        "pincode": "123456"
+    }
+    response = requests.post(f"{BASE_URL}/addresses", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_redeem_boolean_points():
+    payload = {"points": True}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_cart_add_negative_product_id():
+    payload = {"product_id": -1, "quantity": 1}
+    response = requests.post(f"{BASE_URL}/cart/add", json=payload, headers=VALID_HEADERS)
+    assert response.status_code in [400, 404]
+
+def test_review_negative_rating():
+    payload = {"rating": -5, "comment": "Good"}
+    response = requests.post(f"{BASE_URL}/products/1/reviews", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+def test_products_invalid_page():
+    response = requests.get(f"{BASE_URL}/products?page=abc", headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_loyalty_point_redemption_string():
+    payload = {"points": "10"}
+    response = requests.post(f"{BASE_URL}/loyalty/redeem", json=payload, headers=VALID_HEADERS)
+    assert response.status_code in [400, 200]
+
+def test_delete_cart_item_missing_auth_header():
+    response = requests.delete(f"{BASE_URL}/cart/remove/1")
+    assert response.status_code == 401
+
+def test_get_ticket_non_existent():
+    response = requests.get(f"{BASE_URL}/support/tickets/999999", headers=VALID_HEADERS)
+    assert response.status_code == 404
+
+def test_update_ticket_non_existent():
+    payload = {"status": "CLOSED"}
+    response = requests.put(f"{BASE_URL}/support/tickets/999999", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 404
+
+def test_reviews_empty_payload():
+    response = requests.post(f"{BASE_URL}/products/1/reviews", json={}, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_checkout_invalid_type_payment():
+    payload = {"payment_method": 1234}
+    response = requests.post(f"{BASE_URL}/checkout", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
+
+def test_checkout_long_payment_method():
+    payload = {"payment_method": "A" * 100}
+    response = requests.post(f"{BASE_URL}/checkout", json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 400
